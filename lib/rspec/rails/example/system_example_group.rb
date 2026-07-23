@@ -15,6 +15,9 @@ module RSpec
       CHARS_TO_TRANSLATE = ['/', '.', ':', ',', "'", '"', " "].freeze
 
       # @private
+      CHARS_TO_TRANSLATE_STRING = CHARS_TO_TRANSLATE.join.freeze
+
+      # @private
       module BlowAwayTeardownHooks
         # @private
         def before_teardown
@@ -41,7 +44,7 @@ module RSpec
         @method_name ||= [
           self.class.name.underscore,
           RSpec.current_example.description.underscore
-        ].join("_").tr(CHARS_TO_TRANSLATE.join, "_").byteslice(0...200).scrub("") + "_#{rand(1000)}"
+        ].join("_").tr(CHARS_TO_TRANSLATE_STRING, "_").byteslice(0...200).scrub("") + "_#{rand(1000)}"
       end
 
       # @private
