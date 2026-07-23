@@ -33,10 +33,10 @@ module RSpec
         # @param obj [Object] object to convert to a response
         # @return [ActionDispatch::TestResponse]
         def as_test_response(obj)
-          if ::ActionDispatch::Response === obj || ::Rack::MockResponse === obj
-            ::ActionDispatch::TestResponse.from_response(obj)
-          elsif ::ActionDispatch::TestResponse === obj
+          if ::ActionDispatch::TestResponse === obj
             obj
+          elsif ::ActionDispatch::Response === obj || ::Rack::MockResponse === obj
+            ::ActionDispatch::TestResponse.from_response(obj)
           elsif obj.respond_to?(:status_code) && obj.respond_to?(:response_headers)
             # Acts As Capybara Session
             # Hack to support `Capybara::Session` without having to load
@@ -237,15 +237,19 @@ module RSpec
         class GenericStatus < RSpec::Rails::Matchers::BaseMatcher
           include HaveHttpStatus
 
+          # @api private
+          # Status codes which represent a HTTP status code "group"
+          # @see https://github.com/rails/rails/blob/main/actionpack/lib/action_dispatch/testing/test_response.rb `ActionDispatch::TestResponse`
+          VALID_STATUSES = [
+            :error, :success, :missing,
+            :server_error, :successful, :not_found,
+            :redirect
+          ].freeze
+
           # @return [Array<Symbol>] of status codes which represent a HTTP status
           #   code "group"
-          # @see https://github.com/rails/rails/blob/main/actionpack/lib/action_dispatch/testing/test_response.rb `ActionDispatch::TestResponse`
           def self.valid_statuses
-            [
-              :error, :success, :missing,
-              :server_error, :successful, :not_found,
-              :redirect
-            ]
+            VALID_STATUSES
           end
 
           def initialize(type)
@@ -294,9 +298,17 @@ module RSpec
             missing: 'not_found'
           }.freeze
 
+          # Pre-computed predicate method names for each valid status, to
+          # avoid building a new string on every match.
+          RESPONSE_PREDICATES = VALID_STATUSES.each_with_object({}) do |status, predicates|
+            predicates[status] = :"#{RESPONSE_METHODS.fetch(status, status)}?"
+          end.freeze
+
           def check_expected_status(test_response, expected)
-            test_response.send(
-              "#{RESPONSE_METHODS.fetch(expected, expected)}?")
+            predicate = RESPONSE_PREDICATES.fetch(expected) do
+              "#{RESPONSE_METHODS.fetch(expected, expected)}?"
+            end
+            test_response.send(predicate)
           end
 
         private

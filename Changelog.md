@@ -6,6 +6,11 @@ Bug Fixes:
 * Include `ActiveJob::TestHelper` in all rails example groups to ensure jobs are reset
   between examples matching Rails in-build behaviour. (Hammad Khan, rspec/rspec-rails#2901)
 
+Performance Improvements:
+
+* Avoid wrapping responses which are already an `ActionDispatch::TestResponse` in a new
+  test response, and avoid other repeated allocations in `have_http_status`. (Claude)
+
 ### 8.0.4 / 2026-03-10
 [Full Changelog](https://github.com/rspec/rspec-rails/compare/v8.0.3...v8.0.4)
 
