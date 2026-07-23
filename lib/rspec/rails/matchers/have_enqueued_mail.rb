@@ -139,7 +139,7 @@ module RSpec
         end
 
         def mail_job_message(job)
-          job_args = deserialize_arguments(job)
+          job_args = deserialized_arguments(job)
 
           mailer_method = job_args[0..1].join('.')
           mailer_args = job_args[3..]
@@ -177,7 +177,7 @@ module RSpec
         end
 
         def extract_args_without_parameterized_params(job)
-          args = deserialize_arguments(job)
+          args = deserialized_arguments(job)
           mailer_args = args - base_mailer_args
 
           if parameterized_mail?(job)

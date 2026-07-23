@@ -171,8 +171,27 @@ module RSpec
         @assertion_delegator ||= AssertionDelegator.new
       end
 
+      # Module containing the assertion delegator methods. It is built once,
+      # the first time it is needed, and shared by every example group that
+      # includes `MinitestAssertionAdapter`, rather than re-scanning the
+      # assertion methods and re-defining delegators for each group.
+      #
+      # @private
+      def self.assertion_delegators
+        @assertion_delegators ||= Module.new do
+          ::RSpec::Rails::Assertions
+            .public_instance_methods
+            .select { |m| m.to_s =~ /^(assert|flunk|refute)/ }
+            .each do |m|
+              define_method(m) do |*args, &block|
+                assertion_delegator.send(m, *args, &block)
+              end
+            end
+        end
+      end
+
       included do
-        define_assertion_delegators
+        include ::RSpec::Rails::MinitestAssertionAdapter.assertion_delegators
       end
     end
 
