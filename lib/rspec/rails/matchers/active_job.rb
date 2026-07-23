@@ -16,7 +16,7 @@ module RSpec
             @queue = nil
             @priority = nil
             @at = nil
-            @block = proc { }
+            @block = nil
             set_expected_number(:exactly, 1)
           end
 
@@ -110,8 +110,7 @@ module RSpec
           def check(jobs)
             @matching_jobs, @unmatching_jobs = jobs.partition do |job|
               if matches_constraints?(job)
-                args = deserialize_arguments(job)
-                @block.call(*args)
+                @block&.call(*deserialized_arguments(job))
                 true
               else
                 false
@@ -144,7 +143,7 @@ module RSpec
 
           def base_job_message(job)
             msg_parts = []
-            msg_parts << "with #{deserialize_arguments(job)}" if job[:args].any?
+            msg_parts << "with #{deserialized_arguments(job)}" if job[:args].any?
             msg_parts << "on queue #{job[:queue]}" if job[:queue]
             msg_parts << "at #{Time.at(job[:at])}" if job[:at]
             msg_parts <<
@@ -169,19 +168,31 @@ module RSpec
 
           def arguments_match?(job)
             if @args.any?
-              args = serialize_and_deserialize_arguments(@args)
-              deserialized_args = deserialize_arguments(job)
-              RSpec::Mocks::ArgumentListMatcher.new(*args).args_match?(*deserialized_args)
+              argument_list_matcher.args_match?(*deserialized_arguments(job))
             else
               true
             end
+          end
+
+          # The expected arguments only need to be serialized and deserialized
+          # once, no matter how many enqueued jobs they are checked against, so
+          # the resulting matcher is cached as long as `@args` stays the same
+          # object.
+          def argument_list_matcher
+            unless defined?(@argument_list_matcher) && @argument_list_matcher_source.equal?(@args)
+              @argument_list_matcher_source = @args
+              @argument_list_matcher =
+                RSpec::Mocks::ArgumentListMatcher.new(*serialize_and_deserialize_arguments(@args))
+            end
+
+            @argument_list_matcher
           end
 
           def detect_args_signature_mismatch(jobs)
             return if skip_signature_verification?
 
             jobs.each do |job|
-              args = deserialize_arguments(job)
+              args = deserialized_arguments(job)
 
               if (signature_mismatch = check_args_signature_mismatch(job.fetch(:job), :perform, args))
                 return signature_mismatch
@@ -270,6 +281,17 @@ module RSpec
             ::ActiveJob::Arguments.deserialize(job[:args])
           rescue ::ActiveJob::DeserializationError
             job[:args]
+          end
+
+          # Deserializing a job's arguments is relatively expensive (it can
+          # even trigger database queries for GlobalID arguments), and the
+          # matcher needs the deserialized arguments in several places, so the
+          # result is memoized per job.
+          def deserialized_arguments(job)
+            @deserialized_arguments ||= {}.compare_by_identity
+            @deserialized_arguments.fetch(job) do
+              @deserialized_arguments[job] = deserialize_arguments(job)
+            end
           end
 
           def queue_adapter
